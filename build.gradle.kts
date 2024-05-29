@@ -11,6 +11,7 @@ repositories {
 
 dependencies {
 
+    implementation ("com.knuddels:jtokkit:1.0.0")
 
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.8.1")
 

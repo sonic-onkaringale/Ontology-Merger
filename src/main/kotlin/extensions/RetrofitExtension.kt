@@ -1,9 +1,7 @@
 package extensions
 
 
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.launch
+import kotlinx.coroutines.*
 import okio.IOException
 import retrofit2.Call
 import retrofit2.Callback
@@ -40,6 +38,7 @@ class CallBackKt<T>() : Callback<T>
 
 }
 
+@OptIn(DelicateCoroutinesApi::class)
 fun <T> Call<T>.executeSync(): T?
 {
 
@@ -54,7 +53,7 @@ fun <T> Call<T>.executeSync(): T?
     }
     catch (e: Exception)
     {
-        CoroutineScope(Dispatchers.Main).launch {
+        GlobalScope.launch {
             if (e is IOException)
             {
                 println("Bad Network : $e")

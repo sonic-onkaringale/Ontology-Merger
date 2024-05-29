@@ -5,7 +5,7 @@ import com.google.gson.annotations.SerializedName
 data class ChatCompletionRequest(
 
     @SerializedName("model") var model: String? = null,
-    @SerializedName("messages") var messages: ArrayList<Messages> = arrayListOf(),
+    @SerializedName("messages") var messages: ArrayList<Message> = arrayListOf(),
     @SerializedName("temperature") var temperature: Double? = null,
     @SerializedName("max_tokens") var maxTokens: Int? = null,
     @SerializedName("stream") var stream: Boolean? = null
@@ -25,7 +25,7 @@ data class ChatCompletionResponse(
 data class Choices(
 
     @SerializedName("index") var index: Int? = null,
-    @SerializedName("message") var message: Messages = Messages(),
+    @SerializedName("message") var message: Message = Message(),
     @SerializedName("finish_reason") var finishReason: String? = null
 
 )
@@ -40,7 +40,7 @@ data class Usage(
 )
 
 
-data class Messages(
+data class Message(
 
     @SerializedName("role") var role: String? = null,
     @SerializedName("content") var content: String? = null

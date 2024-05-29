@@ -8,7 +8,9 @@ import org.apache.jena.rdf.model.ModelFactory
 import org.apache.jena.rdf.model.Resource
 import org.onkaringale.graphs.AdjacencyList
 import org.onkaringale.graphs.Vertex
+import org.onkaringale.matching.SemanticSimilarity
 import org.onkaringale.matching.SemanticSimilarity.areSemanticallySimilar
+import org.onkaringale.matching.SemanticSimilarity.areSemanticallySimilarGroupSearch
 import java.io.File
 import java.io.FileOutputStream
 
@@ -22,7 +24,7 @@ fun main()
 //    val g = convertToAdjacencyList(model)
 //    println(g.toString())
 
-    val path1 = "C:\\Users\\ingal\\Downloads\\owl\\car2.owl"
+    val path1 = "C:\\Users\\ingal\\Downloads\\owl\\human.owl"
     val class1 = ModelFactory.createOntologyModel(OntModelSpec.OWL_DL_MEM)
     class1.read(path1)
 
@@ -30,7 +32,7 @@ fun main()
     class1Copy.read(path1)
 
 
-    val path2 = "C:\\Users\\ingal\\Downloads\\owl\\car1.owl"
+    val path2 = "C:\\Users\\ingal\\Downloads\\owl\\mouse.owl"
     val class2 = ModelFactory.createOntologyModel(OntModelSpec.OWL_DL_MEM)
     class2.read(path2)
 
@@ -43,39 +45,44 @@ fun main()
     println("Merging Complete.")
 
     println(convertToAdjacencyList(class1).toString())
-    val outputStream = FileOutputStream(File("C:\\Users\\ingal\\Downloads\\owl\\mergedCars.owl"), false)
+    val outputStream = FileOutputStream(File("C:\\Users\\ingal\\Downloads\\owl\\mergedAnatomy.owl"), false)
     class1.write(outputStream)
 
 
 }
 
-fun convertToAdjacencyList(model: OntModel): AdjacencyList<String>
+fun convertToAdjacencyList(model: OntModel, isPreReportEnabled: Boolean = false): AdjacencyList<String>
 {
     val adjacencyList = AdjacencyList<String>()
 
     val resourceToVertexMap = mutableMapOf<Resource, Vertex<String>>()
 
-    println("=======Pre Report============")
-    println("Ontologies : " + model.listOntologies().toList().toString())
+
+    if (isPreReportEnabled)
+    {
+        println("=======Pre Report============")
+        println("Ontologies : " + model.listOntologies().toList().toString())
 //    println(model.listClasses().toList().toString())
-    println("AllOntProperties : " + model.listAllOntProperties().toList().toString())
-    println("NamedClasses : " + model.listNamedClasses().toList().toString())
-    println("AnnotationProperties : " + model.listAnnotationProperties().toList().toString())
-    println("ImportedOntologyURIs : " + model.listImportedOntologyURIs().toList().toString())
-    println("SubModels : " + model.listSubModels().toList().toString())
-    println("DataRanges : " + model.listDataRanges().toList().toString())
-    println("Restrictions : " + model.listRestrictions().toList().toString())
-    println("DatatypeProperties : " + model.listDatatypeProperties().toList().toString())
-    println("AllOntProperties : " + model.listAllOntProperties().toList().toString())
-    println("UnionClasses : " + model.listUnionClasses().toList().toString())
-    println("ComplementClasses : " + model.listComplementClasses().toList().toString())
-    println("ObjectProperties : " + model.listObjectProperties().toList().toString())
-    println("=============================")
+        println("AllOntProperties : " + model.listAllOntProperties().toList().toString())
+        println("NamedClasses : " + model.listNamedClasses().toList().toString())
+        println("AnnotationProperties : " + model.listAnnotationProperties().toList().toString())
+        println("ImportedOntologyURIs : " + model.listImportedOntologyURIs().toList().toString())
+        println("SubModels : " + model.listSubModels().toList().toString())
+        println("DataRanges : " + model.listDataRanges().toList().toString())
+        println("Restrictions : " + model.listRestrictions().toList().toString())
+        println("DatatypeProperties : " + model.listDatatypeProperties().toList().toString())
+        println("AllOntProperties : " + model.listAllOntProperties().toList().toString())
+        println("UnionClasses : " + model.listUnionClasses().toList().toString())
+        println("ComplementClasses : " + model.listComplementClasses().toList().toString())
+        println("ObjectProperties : " + model.listObjectProperties().toList().toString())
+        println("=============================")
+    }
     // Iterate over all resources in the model
     model.listSubjects().forEachRemaining { resource ->
         if (resource.isAnon) return@forEachRemaining  // Skip blank nodes
 
-        val localName = resource.localName
+        val label = resource.getProperty(org.apache.jena.vocabulary.RDFS.label)?.string
+        val localName = label ?: resource.localName
         val vertex = adjacencyList.createVertex(localName)
         resourceToVertexMap[resource] = vertex
     }
@@ -119,44 +126,42 @@ fun mergeOntologies(model1Copy: OntModel, model1: OntModel, model2: OntModel)
     {
         mergeClassRecursive(model1Copy, model1, class2)
     }
-    mergeAllProperties(model1,model2)
+    mergeAllProperties(model1, model2)
 }
 
 @Throws(java.lang.Exception::class)
 private fun mergeClassRecursive(model1Copy: OntModel, model1: OntModel, class2: OntClass)
 {
-    val bestMatch = findBestMatchRecursive(
-        model1Copy.listClasses().toList(),
-        model1.listClasses().toList().filter { it ->
-            isMerged(it)
-        }, class2
-    )
-    if (bestMatch != null)
+    val output =
+        SemanticSimilarity.areSemanticallySimilarGroupSearch(ArrayList(model1Copy.listClasses().toList()), class2)
+    if (output.isNotEmpty())
     {
-        val newClass2 = model1.createClass(class2.uri)
-        newClass2.addVersionInfo("${newClass2.versionInfo ?: ""}\n mergedFromLLM")
-        bestMatch.addSubClass(newClass2)
-        println("Merged ${class2.localName} with ${bestMatch.localName}")
-        // Recursively merge subclasses of class2 directly under newClass2
-        val subclasses = class2.listSubClasses().toList()
-        for (subclass in subclasses)
-        {
-            addSubClassRecursive(model1, newClass2, subclass)
-        }
-    }
-    else
-    {
-//        model1.add(class2)
-    }
-}
 
-private fun isMerged(it: OntClass) = if (it.versionInfo?.contains("mergedFromLLM") != true)
-{
-    true
-}
-else
-{
-    false
+        val bestMatch = findBestMatchRecursive(
+            output,
+            model1.listClasses().toList().filter { it ->
+                isNotMerged(it)
+            }, class2
+        )
+        if (bestMatch != null)
+        {
+            val newClass2 = model1.createClass(class2.uri)
+            newClass2.addVersionInfo("${newClass2.versionInfo ?: ""}\n mergedFromLLM")
+            bestMatch.addSubClass(newClass2)
+            println("Merged ${class2.localName} with ${bestMatch.localName}")
+            // Recursively merge subclasses of class2 directly under newClass2
+            val subclasses = class2.listSubClasses().toList()
+            for (subclass in subclasses)
+            {
+                addSubClassRecursive(model1, newClass2, subclass)
+            }
+        }
+        else
+        {
+//        model1.add(class2)
+        }
+
+    }
 }
 
 @Throws(java.lang.Exception::class)
@@ -173,13 +178,15 @@ private fun findBestMatchRecursive(
 //    Map keys
     for (i in classList1Copy.indices)
     {
-        hashMap[classList1Copy[i].uri] = null
+        if ((classList1Copy[i].uri ?: classList1Copy[i].getLabel(null)) != null)
+            hashMap[classList1Copy[i].uri ?: classList1Copy[i].getLabel(null)] = null
     }
 //    Put references
     for (i in classList1.indices)
     {
 //        TODO add doesContainKey to find out the additional classes left
-        hashMap[classList1[i].uri] = classList1[i]
+        if ((classList1[i].uri ?: classList1[i].getLabel(null)) != null)
+            hashMap[classList1[i].uri ?: classList1[i].getLabel(null)] = classList1[i]
     }
 
 
@@ -190,18 +197,26 @@ private fun findBestMatchRecursive(
 //            areStructurallySimilar(classList1Copy[i], candidateClass) ||
             areSemanticallySimilar(classList1Copy[i], candidateClass))
         {
-            if (classList1Copy[i].localName != hashMap[classList1Copy[i].uri]?.localName)
-            {
-                println("Sending Didn't Match,  Copy : ${classList1Copy[i].localName} , Actual : ${classList1[i].localName}")
-            }
+//            if (classList1Copy[i].localName != hashMap[classList1Copy[i].uri]?.localName)
+//            {
+//                println("Sending Didn't Match,  Copy : ${classList1Copy[i].localName} , Actual : ${classList1[i].localName}")
+//            }
 
-            bestMatch = hashMap[classList1Copy[i].uri]
-            val subClassesCopy = classList1Copy[i].listSubClasses().toList()
-            if (hashMap[classList1Copy[i].uri] == null)
+            bestMatch = hashMap[classList1Copy[i].uri ?: classList1Copy[i].getLabel(null)]
+//            TODO: Implement Strategies here
+            val subClassesCopy = areSemanticallySimilarGroupSearch(
+                ArrayList(classList1Copy[i].listSubClasses().toList()),
+                candidateClass
+            )
+
+
+            if (hashMap[classList1Copy[i].uri ?: classList1Copy[i].getLabel(null)] == null)
                 println("Null found in hashmap")
-            val subClasses = hashMap[classList1Copy[i].uri]!!.listSubClasses().toList().filter { it ->
-                isMerged(it)
-            }
+            val subClasses =
+                hashMap[classList1Copy[i].uri ?: classList1Copy[i].getLabel(null)]!!.listSubClasses().toList()
+                    .filter { it ->
+                        isNotMerged(it)
+                    }
             val deeperMatch = findBestMatchRecursive(subClassesCopy, subClasses, candidateClass)
             if (deeperMatch != null)
             {
@@ -225,6 +240,15 @@ private fun findBestMatchRecursive(
 //        }
 //    }
     return bestMatch
+}
+
+private fun isNotMerged(it: OntClass) = if (it.versionInfo?.contains("mergedFromLLM") != true)
+{
+    true
+}
+else
+{
+    false
 }
 
 @Throws(java.lang.Exception::class)
