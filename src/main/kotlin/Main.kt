@@ -1,5 +1,6 @@
 package org.onkaringale
 
+import OntologyDetails
 import org.apache.jena.ontology.OntClass
 import org.apache.jena.ontology.OntModel
 import org.apache.jena.ontology.OntModelSpec
@@ -122,6 +123,8 @@ fun mergeOntologies(model1Copy: OntModel, model1: OntModel, model2: OntModel)
 {
 
     val classesToMerge = model2.listClasses().toList()
+    println("Model 1 : ${OntologyDetails.ontology1} with ${model1.listClasses().toList().size} classes")
+    println("Model 2 : ${OntologyDetails.ontology2} with ${classesToMerge.size} classes")
     for (class2 in classesToMerge)
     {
         mergeClassRecursive(model1Copy, model1, class2)
@@ -132,35 +135,28 @@ fun mergeOntologies(model1Copy: OntModel, model1: OntModel, model2: OntModel)
 @Throws(java.lang.Exception::class)
 private fun mergeClassRecursive(model1Copy: OntModel, model1: OntModel, class2: OntClass)
 {
-    val output =
-        SemanticSimilarity.areSemanticallySimilarGroupSearch(ArrayList(model1Copy.listClasses().toList()), class2)
-    if (output.isNotEmpty())
+    val bestMatch = findBestMatchRecursive(
+        model1Copy.listClasses().toList(),
+        model1.listClasses().toList().filter { it ->
+            isNotMerged(it)
+        }, class2
+    )
+    if (bestMatch != null)
     {
-
-        val bestMatch = findBestMatchRecursive(
-            output,
-            model1.listClasses().toList().filter { it ->
-                isNotMerged(it)
-            }, class2
-        )
-        if (bestMatch != null)
+        val newClass2 = model1.createClass(class2.uri)
+        newClass2.addVersionInfo("${newClass2.versionInfo ?: ""}\n mergedFromLLM")
+        bestMatch.addSubClass(newClass2)
+        println("Merged ${class2.localName} with ${bestMatch.localName}")
+        // Recursively merge subclasses of class2 directly under newClass2
+        val subclasses = class2.listSubClasses().toList()
+        for (subclass in subclasses)
         {
-            val newClass2 = model1.createClass(class2.uri)
-            newClass2.addVersionInfo("${newClass2.versionInfo ?: ""}\n mergedFromLLM")
-            bestMatch.addSubClass(newClass2)
-            println("Merged ${class2.localName} with ${bestMatch.localName}")
-            // Recursively merge subclasses of class2 directly under newClass2
-            val subclasses = class2.listSubClasses().toList()
-            for (subclass in subclasses)
-            {
-                addSubClassRecursive(model1, newClass2, subclass)
-            }
+            addSubClassRecursive(model1, newClass2, subclass)
         }
-        else
-        {
+    }
+    else
+    {
 //        model1.add(class2)
-        }
-
     }
 }
 
@@ -203,13 +199,8 @@ private fun findBestMatchRecursive(
 //            }
 
             bestMatch = hashMap[classList1Copy[i].uri ?: classList1Copy[i].getLabel(null)]
-//            TODO: Implement Strategies here
-            val subClassesCopy = areSemanticallySimilarGroupSearch(
-                ArrayList(classList1Copy[i].listSubClasses().toList()),
-                candidateClass
-            )
 
-
+            val subClassesCopy = classList1Copy[i].listSubClasses().toList()
             if (hashMap[classList1Copy[i].uri ?: classList1Copy[i].getLabel(null)] == null)
                 println("Null found in hashmap")
             val subClasses =
