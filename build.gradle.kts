@@ -11,6 +11,8 @@ repositories {
 
 dependencies {
 
+    implementation("io.github.amikos-tech:chromadb-java-client:0.1.5")
+
     implementation ("com.knuddels:jtokkit:1.0.0")
 
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.8.1")

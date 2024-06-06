@@ -9,6 +9,7 @@ import org.apache.jena.ontology.OntClass
 import org.onkaringale.api.Apis
 import org.onkaringale.models.ChatCompletion.ChatCompletionRequest
 import org.onkaringale.models.ChatCompletion.Message
+import utils.Commons.getLabel
 
 
 object SemanticSimilarity
@@ -130,12 +131,9 @@ object SemanticSimilarity
             batches.add(currentBatch)
     }
 
-    fun getLabel(ontClass: OntClass): String?
-    {
-        return ontClass.getLabel(null) ?: ontClass.localName
-    }
 
-    fun getSystemMessageGroupSearch(): String
+
+    private fun getSystemMessageGroupSearch(): String
     {
         return "I will be providing a single class from Ontology ${OntologyDetails.ontology2} as Input 1 and multiple classes from Ontology ${OntologyDetails.ontology1} as Input 2.\n" +
                 "The classes of Ontology ${OntologyDetails.ontology1} will be indexed.\n" +
@@ -145,7 +143,7 @@ object SemanticSimilarity
                 "Only output the indexes. If there are none, output \"empty\" word."
     }
 
-    fun getUserMessageGroupSearch(classes1: ArrayList<OntClass>, class2: OntClass): String?
+    private fun getUserMessageGroupSearch(classes1: ArrayList<OntClass>, class2: OntClass): String?
     {
         if (classes1.isNotEmpty() && getLabel(class2) != null)
         {
@@ -164,7 +162,7 @@ object SemanticSimilarity
         return null
     }
 
-    fun getTotalTokenCountWithoutInput2(class2: OntClass): Int
+    private fun getTotalTokenCountWithoutInput2(class2: OntClass): Int
     {
 
         val input1 = "Input 1 : ${getLabel(class2)}"
@@ -176,13 +174,13 @@ object SemanticSimilarity
     }
 
 
-    fun getTotalTokenCount(classes1: ArrayList<OntClass>, class2: OntClass): Int
+    private fun getTotalTokenCount(classes1: ArrayList<OntClass>, class2: OntClass): Int
     {
         val userMessage = getUserMessageGroupSearch(classes1, class2) ?: return 0
         return countTokens(getSystemMessageGroupSearch() + userMessage)
     }
 
-    fun countTokens(string: String): Int
+    private fun countTokens(string: String): Int
     {
         val registry: EncodingRegistry = Encodings.newDefaultEncodingRegistry()
         val enc: Encoding = registry.getEncoding(EncodingType.CL100K_BASE)
