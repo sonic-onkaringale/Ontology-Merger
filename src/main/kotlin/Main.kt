@@ -8,8 +8,11 @@ import merge.MergeOntologiesBestEntry
 import natureInspired.LoadBalancing
 import org.apache.jena.ontology.OntModelSpec
 import org.apache.jena.rdf.model.ModelFactory
+import utils.Commons
+import utils.log
 import java.io.File
 import java.io.FileOutputStream
+import java.time.Instant
 import java.util.*
 import kotlin.collections.HashMap
 
@@ -17,6 +20,7 @@ import kotlin.collections.HashMap
 @OptIn(DelicateCoroutinesApi::class)
 fun main()
 {
+    val startTime = Date(Instant.now().toEpochMilli())
 //    Initialize Vector DB
 //    val vectorDb = VectorDb()
 //    vectorDb.reset()
@@ -29,34 +33,38 @@ fun main()
 
 
     val path1 = "C:\\Users\\ingal\\Downloads\\owl\\human.owl"
-    val class1 = ModelFactory.createOntologyModel(OntModelSpec.OWL_DL_MEM)
-    class1.read(path1)
-
-    val class1Copy = ModelFactory.createOntologyModel(OntModelSpec.OWL_DL_MEM)
-    class1Copy.read(path1)
-
-
+//    val class1 = ModelFactory.createOntologyModel(OntModelSpec.OWL_DL_MEM)
+//    class1.read(path1)
+//
+//    val class1Copy = ModelFactory.createOntologyModel(OntModelSpec.OWL_DL_MEM)
+//    class1Copy.read(path1)
+//
+//
     val path2 = "C:\\Users\\ingal\\Downloads\\owl\\mouse.owl"
-    val class2 = ModelFactory.createOntologyModel(OntModelSpec.OWL_DL_MEM)
-    class2.read(path2)
-
-    val graph1 = convertToAdjacencyList(class1)
-    val graph2= convertToAdjacencyList(class2)
-    graphReports(class1, class2, graph1, graph2)
-
-
+//    val class2 = ModelFactory.createOntologyModel(OntModelSpec.OWL_DL_MEM)
+//    class2.read(path2)
+//
+//    val graph1 = convertToAdjacencyList(class1)
+//    val graph2= convertToAdjacencyList(class2)
+//    graphReports(class1, class2, graph1, graph2)
 
 
-    println("Started merging.")
+
+
+//    println("Started merging.")
     val humanMouseOnt = MergeOntologiesBestEntry(path1,path2)
+    graphReports(humanMouseOnt.getModel1(),humanMouseOnt.getModel2(),
+        humanMouseOnt.getModel1Graph(),humanMouseOnt.getModel2Graph())
     humanMouseOnt.mergeOntologies()
-    println("Merging Complete.")
+//    println("Merging Complete.")
+//
+//    println(convertToAdjacencyList(class1).toString())
+//    val outputStream = FileOutputStream(File("C:\\Users\\ingal\\Downloads\\owl\\mergedBAnatomy.owl"), false)
+//    class1.write(outputStream)
 
-    println(convertToAdjacencyList(class1).toString())
-    val outputStream = FileOutputStream(File("C:\\Users\\ingal\\Downloads\\owl\\mergedBAnatomy.owl"), false)
-    class1.write(outputStream)
 
-
+    val endTime = Date(Instant.now().toEpochMilli())
+    log("Total Compute Time :  "+Commons.getDateTimeDifference(startTime,endTime))
 }
 
 @OptIn(DelicateCoroutinesApi::class)

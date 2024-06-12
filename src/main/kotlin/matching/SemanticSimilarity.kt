@@ -1,6 +1,7 @@
 package org.onkaringale.matching
 
 
+import Cache.ChatCache
 import OntologyDetails
 import com.knuddels.jtokkit.Encodings
 import com.knuddels.jtokkit.api.*
@@ -10,6 +11,7 @@ import org.onkaringale.api.Apis
 import org.onkaringale.models.ChatCompletion.ChatCompletionRequest
 import org.onkaringale.models.ChatCompletion.Message
 import utils.Commons.getLabel
+import utils.log
 
 
 object SemanticSimilarity
@@ -195,6 +197,23 @@ object SemanticSimilarity
         class2Description: String
     ): Boolean
     {
+
+        val toAsk = "Class 1 Label : $class1Label,\n" +
+                "Class 1 description : $class1Description \n" +
+                "\n" +
+                "Class 2 Label : $class2Label,\n" +
+                "Class 2 description : $class2Description \n" +
+                "\n" +
+                "Is Class 2 " +
+//                                "similar to or" +
+                "subclass of " +
+                "class 1"
+        if (ChatCache.cache.contains(toAsk))
+        {
+            val isSimilar = ChatCache.cache[toAsk]
+            if (isSimilar!=null)
+                return isSimilar
+        }
         val llmApi = Apis.getLLMApi()
         val response = llmApi.chatCompletion(
             ChatCompletionRequest(
@@ -208,16 +227,7 @@ object SemanticSimilarity
                     ),
                     Message(
                         "user",
-                        "Class 1 Label : $class1Label,\n" +
-                                "Class 1 description : $class1Description \n" +
-                                "\n" +
-                                "Class 2 Label : $class2Label,\n" +
-                                "Class 2 description : $class2Description \n" +
-                                "\n" +
-                                "Is Class 2 " +
-//                                "similar to or" +
-                                "subclass of " +
-                                "class 1"
+                        toAsk
                     )
                 ),
                 0.7,
@@ -227,8 +237,23 @@ object SemanticSimilarity
         ).executeSync()
         if (response != null)
         {
-            if (response.choices.last().message.content!!.lowercase().contains("yes"))
+            val responseString = response.choices.last().message.content!!.lowercase()
+            if (responseString.contains("yes"))
+            {
+                ChatCache.cache[toAsk]=true
                 return true
+            }
+            else
+            {
+                if (responseString.trim()=="no")
+                {
+                    ChatCache.cache[toAsk]=false
+                }
+                if (responseString!="no")
+                {
+                    log("Response wasn't expected : $responseString")
+                }
+            }
         }
 
         return false

@@ -7,7 +7,7 @@ import org.apache.jena.rdf.model.Resource
 import org.onkaringale.graphs.AdjacencyList
 import org.onkaringale.graphs.Vertex
 import utils.Commons
-
+import utils.log
 object OntGraphUtils
 {
     fun countSubClasses(clazzOnt: OntClass, doesConsiderValidLabel:Boolean=true): Int
@@ -72,22 +72,22 @@ object OntGraphUtils
 
         if (isPreReportEnabled)
         {
-            println("=======Pre Report============")
-            println("Ontologies : " + model.listOntologies().toList().toString())
-//    println(model.listClasses().toList().toString())
-            println("AllOntProperties : " + model.listAllOntProperties().toList().toString())
-            println("NamedClasses : " + model.listNamedClasses().toList().toString())
-            println("AnnotationProperties : " + model.listAnnotationProperties().toList().toString())
-            println("ImportedOntologyURIs : " + model.listImportedOntologyURIs().toList().toString())
-            println("SubModels : " + model.listSubModels().toList().toString())
-            println("DataRanges : " + model.listDataRanges().toList().toString())
-            println("Restrictions : " + model.listRestrictions().toList().toString())
-            println("DatatypeProperties : " + model.listDatatypeProperties().toList().toString())
-            println("AllOntProperties : " + model.listAllOntProperties().toList().toString())
-            println("UnionClasses : " + model.listUnionClasses().toList().toString())
-            println("ComplementClasses : " + model.listComplementClasses().toList().toString())
-            println("ObjectProperties : " + model.listObjectProperties().toList().toString())
-            println("=============================")
+            log("=======Pre Report============")
+            log("Ontologies : " + model.listOntologies().toList().toString())
+//    log(model.listClasses().toList().toString())
+            log("AllOntProperties : " + model.listAllOntProperties().toList().toString())
+            log("NamedClasses : " + model.listNamedClasses().toList().toString())
+            log("AnnotationProperties : " + model.listAnnotationProperties().toList().toString())
+            log("ImportedOntologyURIs : " + model.listImportedOntologyURIs().toList().toString())
+            log("SubModels : " + model.listSubModels().toList().toString())
+            log("DataRanges : " + model.listDataRanges().toList().toString())
+            log("Restrictions : " + model.listRestrictions().toList().toString())
+            log("DatatypeProperties : " + model.listDatatypeProperties().toList().toString())
+            log("AllOntProperties : " + model.listAllOntProperties().toList().toString())
+            log("UnionClasses : " + model.listUnionClasses().toList().toString())
+            log("ComplementClasses : " + model.listComplementClasses().toList().toString())
+            log("ObjectProperties : " + model.listObjectProperties().toList().toString())
+            log("=============================")
         }
 //    For VectorDb
         val documents = ArrayList<String>()
@@ -157,9 +157,9 @@ object OntGraphUtils
 
         if (vectorDb != null)
         {
-            println("Started Insertion in Vector Database ${documents.size} .")
+            log("Started Insertion in Vector Database ${documents.size} .")
             vectorDb.add(documents, ids, metadata)
-            println("Finished Insertion in Vector Database")
+            log("Finished Insertion in Vector Database")
         }
 
         return adjacencyList
@@ -172,8 +172,8 @@ object OntGraphUtils
         classHashMap: HashMap<String, OntClass>
         , graphName:String="Graph ")
     {
-        println()
-        println(
+        log()
+        log(
             "$graphName ${Commons.getOntologyName(model)} with total classes of ${
                 model.listClasses().toList().filter { Commons.getLabel(it) != null }.size
             }"
@@ -183,7 +183,7 @@ object OntGraphUtils
             graph.findBestEntryPoint()?.data!!, model
         )
 
-        println(
+        log(
             "Best Entry Point : $bestEntry with ${
                 classHashMap[bestEntry!!]?.let {
                     OntGraphUtils.countUniqueSubClasses(
@@ -201,16 +201,16 @@ object OntGraphUtils
                     }" +
                     " subclasses"
         )
-        println()
-        println("Best Entry Point SubClasses")
+        log()
+        log("Best Entry Point SubClasses")
         classHashMap[bestEntry]!!.listSubClasses().toList()
             .apply {
-                println("Subclass Count $size")
+                log("Subclass Count $size")
             }
             .forEach {
-                println(Commons.getLabel(it))
+                log(Commons.getLabel(it))
             }
-        println()
+        log()
     }
 
     fun graphReports(
@@ -242,8 +242,8 @@ object OntGraphUtils
 
         printBestEntry(class2, graph2, class2HashMap, "G2")
 
-        println("Disconnected Sub Graphs in G1 Found : ${graph1.findDisconnectedSubgraphs().size}")
-        println("Disconnected Sub Graphs in G2 Found : ${graph2.findDisconnectedSubgraphs().size}")
+        log("Disconnected Sub Graphs in G1 Found : ${graph1.findDisconnectedSubgraphs().size}")
+        log("Disconnected Sub Graphs in G2 Found : ${graph2.findDisconnectedSubgraphs().size}")
     }
 }
 

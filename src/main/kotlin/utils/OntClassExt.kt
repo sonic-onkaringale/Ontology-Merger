@@ -12,3 +12,8 @@ fun OntClass.getLabelElite(): String?
 {
     return this.getLabel(null) ?: this.localName
 }
+
+fun OntModel.getName(): String
+{
+    return Commons.getOntologyName(this)
+}

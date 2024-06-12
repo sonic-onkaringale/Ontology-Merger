@@ -1,5 +1,6 @@
 plugins {
     kotlin("jvm") version "1.9.22"
+    kotlin("plugin.serialization") version "2.0.0"
 }
 
 group = "org.onkaringale"
@@ -14,6 +15,8 @@ dependencies {
     implementation("io.github.amikos-tech:chromadb-java-client:0.1.5")
 
     implementation ("com.knuddels:jtokkit:1.0.0")
+
+    implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.6.3")
 
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.8.1")
 

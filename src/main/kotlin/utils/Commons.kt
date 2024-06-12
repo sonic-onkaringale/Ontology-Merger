@@ -8,7 +8,7 @@ import java.util.*
 
 object Commons
 {
-    fun <T> splitIntoBatches(list: List<T>, batchSize: Int): List<List<T>>
+    fun <T> splitIntoBatches(list: List<T>, batchSize: Int): MutableList<List<T>>
     {
         val batches = mutableListOf<List<T>>()
         var currentBatch = mutableListOf<T>()
