@@ -4,14 +4,16 @@ package merge
 
 import OntologyDetails
 import graphs.OntGraphUtils
+import kotlinx.coroutines.runBlocking
+import natureInspired.LoadBalancing
 import org.apache.jena.ontology.OntClass
 import org.apache.jena.ontology.OntModel
 import org.apache.jena.ontology.OntProperty
 import org.onkaringale.graphs.AdjacencyList
-import org.onkaringale.matching.SemanticSimilarity
 import utils.*
 import java.io.File
 import java.io.FileOutputStream
+import java.text.DateFormat
 import java.time.Instant
 import java.util.*
 import kotlin.collections.HashMap
@@ -43,8 +45,8 @@ class MergeOntologiesBestEntry
     private val mergedClassesMap = HashMap<String, Pair<OntClass, OntClass>>()
 
     //    Timers
-    private var startTime: Long = 0
-    private var endTime: Long = 0
+    private var startTime: Date = Date()
+    private var endTime: Date = Date()
 
     //    Flags
     private var isOntologyMerged = false
@@ -56,7 +58,7 @@ class MergeOntologiesBestEntry
             Commons.readOntologyFromFile(file1Path) ?: throw RuntimeException("File 1 path isn't a valid owl file")
         model2 = Commons.readOntologyFromFile(file2Path) ?: throw RuntimeException("File 2 path isn't a valid owl file")
         model1CopyGraph = OntGraphUtils.convertToAdjacencyList(model1Copy)
-        model2Graph = OntGraphUtils.convertToAdjacencyList(model1Copy)
+        model2Graph = OntGraphUtils.convertToAdjacencyList(model2)
 
         model1Copy.listClasses().toList().forEach { it ->
             model1SubclassesCountMap[it.getHash(model1Copy)] = OntGraphUtils.countSubClasses(it)
@@ -64,6 +66,7 @@ class MergeOntologiesBestEntry
         model2.listClasses().toList().forEach { it ->
             model2SubclassesCountMap[it.getHash(model1Copy)] = OntGraphUtils.countSubClasses(it)
         }
+
     }
 
     fun getModel1Graph(): AdjacencyList<String>
@@ -119,29 +122,52 @@ class MergeOntologiesBestEntry
             log("Model is not merged, call mergeOntologies() to merge Ontologies")
             return
         }
-        val timeTook = "Merging Completed in  " + Commons.getDateTimeDifference(Date(startTime), Date(endTime))
+        val timeTook = "Merging Completed in  " + Commons.getDateTimeDifference(startTime, endTime)
         log(timeTook)
+    }
+
+    fun printClassesForBottomUp()
+    {
+        var classesToMerge = model2.listClasses().toList().filter {
+            it.getLabelElite() != null
+        }.toMutableList()
+        classesToMerge = classesToMerge.sortedBy {
+            model2SubclassesCountMap[it.getHash(model2)]
+        }.toMutableList()
+        for (c in classesToMerge)
+        {
+            println(c.getLabelElite())
+        }
     }
 
 
     @Throws(java.lang.Exception::class)
     private fun mergeOntologies(model1Copy: OntModel, model1: OntModel, model2: OntModel)
     {
+        startTime = Date(Instant.now().toEpochMilli())
+
         if (isOntologyMerged)
         {
             log("Model is already Merged")
             return
         }
+        log(
+            "Merging with "
+                    + if (OntologyDetails.mergingApproach == OntologyDetails.MergingApproach.TOP_BOTTOM)
+                "Top to Bottom Approach"
+            else if (OntologyDetails.mergingApproach == OntologyDetails.MergingApproach.BOTTOM_UP)
+                "Bottom to Up Approach"
+            else
+                "Unknown Approach"
+        )
 
-        val classesToMerge = model2.listClasses().toList()
+        var classesToMerge = model2.listClasses().toList().filter {
+            it.getLabelElite() != null
+        }.toMutableList()
         log("Model 1 : ${OntologyDetails.ontology1} with ${model1.listClasses().toList().size} classes")
         log("Model 2 : ${OntologyDetails.ontology2} with ${classesToMerge.size} classes")
 
-        startTime = Instant.now().epochSecond
         val graph1 = model1CopyGraph
-
-
-
 
 
         val model1Classes = model1.listClasses().toList()
@@ -171,6 +197,19 @@ class MergeOntologiesBestEntry
             )
         }
 
+        if (OntologyDetails.mergingApproach == OntologyDetails.MergingApproach.TOP_BOTTOM)
+        {
+            classesToMerge = classesToMerge.sortedByDescending {
+                model2SubclassesCountMap[it.getHash(model2)]
+            }.toMutableList()
+        }
+        else if (OntologyDetails.mergingApproach == OntologyDetails.MergingApproach.BOTTOM_UP)
+        {
+            classesToMerge = classesToMerge.sortedBy {
+                model2SubclassesCountMap[it.getHash(model2)]
+            }.toMutableList()
+        }
+
 
         var isReachedEnd = false
 //        While loop is to not contaminate indexes because we remove some elements while iterating in for loop
@@ -179,14 +218,22 @@ class MergeOntologiesBestEntry
             for (i in classesToMerge.indices)
             {
                 val class2 = classesToMerge[i]
+                log(" $i / ${classesToMerge.lastIndex}")
                 val isMerged = mergeClassRecursive(model1Copy, model1, class2, bestEntryHash, model1Map)
                 if (isMerged)
                 {
-                    if (OntologyDetails.mergingApproach==OntologyDetails.MergingApproach.TOP_BOTTOM)
+                    if (OntologyDetails.mergingApproach == OntologyDetails.MergingApproach.TOP_BOTTOM)
                     {
                         classesToMerge.removeAll(toRemove)
                         toRemove.clear()
                         break
+                    }
+                }
+                else
+                {
+                    if (OntologyDetails.mergingApproach == OntologyDetails.MergingApproach.TOP_BOTTOM)
+                    {
+                        toRemove.add(class2)
                     }
                 }
                 if (i == classesToMerge.lastIndex)
@@ -197,9 +244,28 @@ class MergeOntologiesBestEntry
         }
         mergeAllProperties(model1, model2)
 
-        endTime = Instant.now().epochSecond
+
         model1Graph = OntGraphUtils.convertToAdjacencyList(model1)
         isOntologyMerged = true
+
+        val loc = Locale.ENGLISH
+        val time = Commons.toSafeFileName(
+            DateFormat.getDateTimeInstance(DateFormat.MEDIUM, DateFormat.LONG, loc)
+                .format(Date(Instant.now().toEpochMilli()))
+        )
+        save(
+            OntologyDetails.saveFolder + Commons.toSafeFileName(
+                OntologyDetails.ontology1.lowercase() + "_" + OntologyDetails.ontology2.lowercase() + "merged_" + time + "_" +
+                        (if (OntologyDetails.mergingApproach == OntologyDetails.MergingApproach.TOP_BOTTOM)
+                            "Top_to_Bottom_Approach"
+                        else if (OntologyDetails.mergingApproach == OntologyDetails.MergingApproach.BOTTOM_UP)
+                            "Bottom_to_Up_Approach"
+                        else
+                            "Unknown_Approach")
+                        + ".owl"
+            )
+        )
+        endTime = Date(Instant.now().toEpochMilli())
         printMergeReport()
     }
 
@@ -222,24 +288,25 @@ class MergeOntologiesBestEntry
             model1Copy
         )
 
-        log("Number of Classes Excluded from ${model1Copy.getName()} because they weren't subclass of Best Entry Point : ${totalClassesInModel1-reachedNodes}")
+        log("Number of Classes Excluded from ${model1Copy.getName()} because they weren't subclass of Best Entry Point : ${totalClassesInModel1 - reachedNodes}")
 
         log("Total Classes Merged : ${mergedClassesMap.size}")
         log("Total Classes Didn't Semantically Match : ${totalClassesInModel2 - mergedClassesMap.size}")
 
-        val redundantMergedCheck = HashMap<OntClass,Int>()
+        val redundantMergedCheck = HashMap<OntClass, Int>()
         model1.listClasses().toList().forEach {
             if (redundantMergedCheck.contains(it))
             {
                 redundantMergedCheck[it] = redundantMergedCheck[it]!! + 1
             }
-            else{
+            else
+            {
                 redundantMergedCheck[it] = 1
             }
         }
-        var redundantMergedCount=0
+        var redundantMergedCount = 0
         redundantMergedCheck.forEach { (key, value) ->
-            if (value>1)
+            if (value > 1)
                 redundantMergedCount++
         }
 
@@ -260,7 +327,6 @@ class MergeOntologiesBestEntry
         val visitedNodes = HashSet<String>()
         val bestMatch = findBestMatchRecursive(
             model1Map[bestEntryHash]!!.first.listSubClasses().toList(),
-            model1Map[bestEntryHash]!!.second.listSubClasses().toList(),
             class2,
             model1Map,
             model1Copy,
@@ -270,9 +336,9 @@ class MergeOntologiesBestEntry
         {
             val newClass2 = model1.createClass(class2.uri)
             newClass2.addVersionInfo("${newClass2.versionInfo ?: ""}\n mergedFromLLM")
-            newClass2.setLabel(class2.getLabelElite(), null)
+            copyPropertiesClassToClass(newClass2,class2,model1)
             bestMatch.addSubClass(newClass2)
-            mergedClassesMap[class2.getHash(model2)] = Pair(class2,newClass2)
+            mergedClassesMap[class2.getHash(model2)] = Pair(class2, newClass2)
             if (OntologyDetails.mergingApproach == OntologyDetails.MergingApproach.TOP_BOTTOM)
             {
                 toRemove.add(class2)
@@ -285,7 +351,7 @@ class MergeOntologiesBestEntry
                     addSubClassRecursive(model1, newClass2, subclass)
                 }
             }
-            if (OntologyDetails.mergingApproach == OntologyDetails.MergingApproach.TOP_BOTTOM)
+            if (OntologyDetails.mergingApproach == OntologyDetails.MergingApproach.BOTTOM_UP)
             {
 //                Implement addSuperClassRecursive Function Here
                 val superClasses = class2.listSuperClasses().toList().sortedBy {
@@ -298,7 +364,7 @@ class MergeOntologiesBestEntry
                 }
             }
 
-            log("Merged ${class2.localName} with ${bestMatch.localName}")
+            log("Merged ${class2.getLabelElite()} with ${bestMatch.getLabelElite()}")
             return true
         }
         else
@@ -311,42 +377,51 @@ class MergeOntologiesBestEntry
     @Throws(java.lang.Exception::class)
     private fun findBestMatchRecursive(
         classList1Copy: List<OntClass>,
-        classList1: List<OntClass>,
         candidateClass: OntClass,
-        model1Map: HashMap<String, Pair<OntClass, OntClass>>, model1Copy: OntModel, visitedNodes: HashSet<String>
+        model1Map: HashMap<String, Pair<OntClass, OntClass>>,
+        model1Copy: OntModel, visitedNodes: HashSet<String>
     ): OntClass?
     {
         var bestMatch: OntClass? = null
 
         log("Comparing ${candidateClass.getLabelElite()} to  ${classList1Copy.size} classes")
 
-        for (i in classList1Copy.indices)
-        {
-            if (visitedNodes.contains(classList1Copy[i].getHash(model1Copy)))
-                return bestMatch
+        val classList1CopyFiltered = classList1Copy.filter {
+            if (visitedNodes.contains(it.getHash(model1Copy)))
+                false
+            else if (it.getLabelElite() == null)
+                false
             else
-                visitedNodes.add(classList1Copy[i].getHash(model1Copy))
+            {
+                visitedNodes.add(it.getHash(model1Copy))
+                true
+            }
+        }
+        val semanticResults = runBlocking {
+            LoadBalancing.areSemanticallySimilarLoadBalanced(classList1CopyFiltered, candidateClass)
+        }
+
+
+        for (i in classList1CopyFiltered.indices)
+        {
+
             if (
-//            areSyntacticallySimilar(classList1Copy[i], candidateClass) ||
-//            areStructurallySimilar(classList1Copy[i], candidateClass) ||
-                SemanticSimilarity.areSemanticallySimilar(classList1Copy[i], candidateClass))
+//            areSyntacticallySimilar(classList1CopyFiltered[i], candidateClass) ||
+//            areStructurallySimilar(classList1CopyFiltered[i], candidateClass) ||
+//                SemanticSimilarity.areSemanticallySimilar(classList1CopyFiltered[i], candidateClass))
+                semanticResults[i]
+            )
             {
 
+                if (model1Map[classList1CopyFiltered[i].getHash(model1Copy)]?.second == null) log("Null found in hashmap")
+                bestMatch = model1Map[classList1CopyFiltered[i].getHash(model1Copy)]!!.second
 
-                if (model1Map[classList1Copy[i].getHash(model1Copy)]?.second == null) log("Null found in hashmap")
-                bestMatch = model1Map[classList1Copy[i].getHash(model1Copy)]!!.second
-
-                val subClassesCopy = classList1Copy[i].listSubClasses().toList().filter {
+                val subClassesCopy = classList1CopyFiltered[i].listSubClasses().toList().filter {
                     it.getLabelElite() != null
                 }
-                val subClasses =
-                    model1Map[classList1Copy[i].getHash(model1Copy)]!!.second.listSubClasses().toList()
-                        .filter { it ->
-                            isNotMerged(it) && it.getLabelElite() != null
-                        }
+
                 val deeperMatch = findBestMatchRecursive(
                     subClassesCopy,
-                    subClasses,
                     candidateClass,
                     model1Map,
                     model1Copy,
@@ -372,29 +447,22 @@ class MergeOntologiesBestEntry
     }
 
     @Throws(java.lang.Exception::class)
-    private fun addSubClassRecursive(model1: OntModel, parentClass: OntClass, subclass: OntClass)
+    private fun addSubClassRecursive(
+        model1: OntModel,
+        newSubClass: OntClass,//New Class
+        oldSubclass: OntClass //Old Class
+    )
     {
-        toRemove.add(subclass)
-        val newSubclass = model1.createClass(subclass.uri)
-        newSubclass.addLabel(parentClass.getLabelElite(), null)
+        toRemove.add(oldSubclass)
+        val newSubclass = model1.createClass(oldSubclass.uri)
 
+        copyPropertiesClassToClass(newSubclass, oldSubclass, model1)
 
-        if (!parentClass.getComment(null)
-                .isNullOrBlank()) newSubclass.addComment(model1.createLiteral(parentClass.getComment(null)))
-
-        parentClass.listProperties().forEachRemaining { action ->
-
-            newSubclass.addProperty(action.predicate, action.`object`)
-        }
-
-        newSubclass.addVersionInfo("${newSubclass.versionInfo ?: ""}\n mergedFromLLM")
-
-
-        parentClass.addSubClass(newSubclass)
+        newSubClass.addSubClass(oldSubclass)
 
 
         // Recursively add subclasses of subclass under newSubclass
-        val subSubclasses = subclass.listSubClasses().toList().sortedByDescending {
+        val subSubclasses = oldSubclass.listSubClasses().toList().sortedByDescending {
             model2SubclassesCountMap[it.getHash(model2)]
         }
         for (subSubclass in subSubclasses)
@@ -403,28 +471,52 @@ class MergeOntologiesBestEntry
         }
     }
 
+    private fun copyPropertiesClassToClass(
+        destinationClass: OntClass,
+        sourceClass: OntClass,
+        mergingModel: OntModel
+    )
+    {
+        destinationClass.addLabel(sourceClass.getLabelElite(), null)
+        if (!sourceClass.getComment(null)
+                .isNullOrBlank()) destinationClass.addComment(mergingModel.createLiteral(sourceClass.getComment(null)))
+        sourceClass.listProperties().forEachRemaining { action ->
+
+            destinationClass.addProperty(action.predicate, action.`object`)
+        }
+
+        destinationClass.addVersionInfo("${sourceClass.versionInfo ?: ""}\n mergedFromLLM")
+    }
+
     private fun addSuperClassRecursive(
         childClass: OntClass//New Class
         , superclass: OntClass //Old Class
     )
     {
+        if (superclass.getLabelElite() == null)
+            return
+        if (superclass.getLabelElite() == "Thing" || childClass.getLabelElite() == "Thing")
+            return
         val superclassHash = superclass.getHash(model1)
         val existingMergedClass = mergedClassesMap[superclassHash]
 
 //        Linking existing classes
-        for ((_, pairOfOldM2AndNewM1Class) in mergedClassesMap)
-        {
-            if (isSuperClassOf(superclass, pairOfOldM2AndNewM1Class.first))
-            {
-                childClass.addSuperClass(pairOfOldM2AndNewM1Class.second)
-                log("Linked ${pairOfOldM2AndNewM1Class.second.getLabelElite()} as super class of <- ${childClass.getLabelElite()}")
-            }
-        }
+
+//        for ((_, pairOfOldM2AndNewM1Class) in mergedClassesMap)
+//        {
+//            if (isSuperClassOf(superclass, pairOfOldM2AndNewM1Class.first))
+//            {
+//                if (pairOfOldM2AndNewM1Class.first.getLabelElite() == "Thing")
+//                    continue
+//                childClass.addSuperClass(pairOfOldM2AndNewM1Class.second)
+//                log("Linked ${pairOfOldM2AndNewM1Class.second.getLabelElite()} as super class of <- ${childClass.getLabelElite()}")
+//            }
+//        }
 
         if (existingMergedClass != null)
         {
             // Add the existing merged class as a superclass
-//            childClass.addSuperClass(existingMergedClass.second)
+            childClass.addSuperClass(existingMergedClass.second)
 
             log("Found existing merged superclass ${existingMergedClass.second.getLabelElite()} to ${childClass.getLabelElite()}")
         }
@@ -435,21 +527,8 @@ class MergeOntologiesBestEntry
 
             // Create a new class in model1 with the URI of the superclass
             val newSuperclass = model1.createClass(superclass.uri)
-            newSuperclass.addLabel(superclass.getLabelElite(), null)
 
-            // Copy comments
-            if (!superclass.getComment(null).isNullOrBlank())
-            {
-                newSuperclass.addComment(model1.createLiteral(superclass.getComment(null)))
-            }
-
-            // Copy properties
-            superclass.listProperties().forEachRemaining { action ->
-                newSuperclass.addProperty(action.predicate, action.`object`)
-            }
-
-            // Add version info
-            newSuperclass.addVersionInfo("${newSuperclass.versionInfo ?: ""}\n mergedFromLLM")
+            copyPropertiesClassToClass(newSuperclass,superclass,model1)
 
             // Add the new superclass to the child class
             childClass.addSuperClass(newSuperclass)
@@ -468,16 +547,7 @@ class MergeOntologiesBestEntry
         }
     }
 
-    /*  private fun addSuperClassRecursive(matchedNewClass:OntClass,matchedOldClass:OntClass)
-      {
-         for ((_ ,pairOfOldM2AndNewM1Class ) in mergedClassesMap)
-         {
-             if (isSuperClassOf(matchedOldClass, pairOfOldM2AndNewM1Class.first)) {
-                 matchedNewClass.addSuperClass(pairOfOldM2AndNewM1Class.second)
-                 log("Linked ${pairOfOldM2AndNewM1Class.second.getLabelElite()} as super class of <- ${matchedNewClass.getLabelElite()}")
-             }
-         }
-      }*/
+
     // Helper function to check if a class is a superclass of another class
     private fun isSuperClassOf(superclass: OntClass, subclass: OntClass): Boolean
     {
@@ -564,5 +634,6 @@ class MergeOntologiesBestEntry
     {
         val outputStream = FileOutputStream(File(filePath), false)
         model1.write(outputStream)
+        log("Merged Model Saved at $filePath")
     }
 }

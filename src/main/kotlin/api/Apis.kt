@@ -37,6 +37,27 @@ object Apis
         return llmApi!!
     }
 
+    private var multipleLLMApiInstance: List<LlmApi>? = null
+    fun getMultipleLLMApis(): List<LlmApi>
+    {
+        if (multipleLLMApiInstance == null)
+        {
+            multipleLLMApiInstance = listOf(
+                constructRetrofit("http://localhost:1234"),
+            )
+        }
+        return multipleLLMApiInstance!!
+    }
+
+    fun constructRetrofit(baseUrl: String): LlmApi
+    {
+        return Retrofit
+            .Builder()
+            .baseUrl(baseUrl)
+            .addConverterFactory(GsonConverterFactory.create())
+            .build()
+            .create(LlmApi::class.java)
+    }
 
 }
 

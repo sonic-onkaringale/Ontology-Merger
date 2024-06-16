@@ -185,7 +185,7 @@ object OntGraphUtils
 
         log(
             "Best Entry Point : $bestEntry with ${
-                classHashMap[bestEntry!!]?.let {
+                classHashMap[bestEntry]?.let {
                     OntGraphUtils.countUniqueSubClasses(
                         it,
                         model
@@ -193,7 +193,7 @@ object OntGraphUtils
                 }
             } unique sub-classes and can reach " +
                     "${
-                        classHashMap[bestEntry!!]?.let {
+                        classHashMap[bestEntry]?.let {
                             OntGraphUtils.countSubClasses(
                                 it
                             )
@@ -203,7 +203,9 @@ object OntGraphUtils
         )
         log()
         log("Best Entry Point SubClasses")
-        classHashMap[bestEntry]!!.listSubClasses().toList()
+        classHashMap[bestEntry]!!
+            .listSubClasses()
+            .toList()
             .apply {
                 log("Subclass Count $size")
             }

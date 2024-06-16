@@ -6,7 +6,7 @@ import org.apache.jena.ontology.OntModel
 import org.apache.jena.ontology.OntProperty
 import org.onkaringale.matching.SemanticSimilarity
 
-object MergeOntologies
+object MergeOntologiesEntityToEntity
 {
 
     @Throws(java.lang.Exception::class)

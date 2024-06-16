@@ -4,6 +4,8 @@ import org.apache.jena.ontology.OntClass
 import org.apache.jena.ontology.OntModel
 import org.apache.jena.ontology.OntModelSpec
 import org.apache.jena.rdf.model.ModelFactory
+import java.io.File
+import java.text.Normalizer
 import java.util.*
 
 object Commons
@@ -46,26 +48,33 @@ object Commons
     }
 
     //    While merging ensure to pass copy of class 1 otherwise hashcode could change while merging process
-    fun getOntologyName(ontModel: OntModel): String
-    {
+    fun getOntologyName(ontModel: OntModel): String {
         // Try to get the ontology URI (rdf:ID) if it is defined
         val ontologyResource = ontModel.getOntology(ontModel.getNsPrefixURI(""))
-        if (ontologyResource != null)
-        {
-            return ontologyResource.uri
+        val uri: String = if (ontologyResource != null) {
+            ontologyResource.uri
+        } else {
+            // Fallback: Try to get the base URI of the model
+            ontModel.getNsPrefixURI("") ?: throw RuntimeException("Ont Model Uri is Null")
         }
 
-        // Fallback: Try to get the base URI of the model
+        // Extract the name between "http://" and ".owl#"
+        val regex = Regex("http://(.*)\\.owl#")
+        val matchResult = regex.find(uri)
 
-        val uri = ontModel.getNsPrefixURI("") ?: throw RuntimeException("Ont Model Uri is Null")
-        return uri
+        if (matchResult != null) {
+            return toSafeFileName(matchResult.groupValues[1])
+        } else {
+            throw RuntimeException("Ontology URI does not match the expected format")
+        }
     }
+
 
 
     fun readOntologyFromFile(path:String): OntModel?
     {
         val model =ModelFactory.createOntologyModel(OntModelSpec.OWL_DL_MEM)
-        model.read(path)
+        model.read(File(path).toURI().toURL().toString())
         return model
     }
 
@@ -102,4 +111,23 @@ object Commons
 //        )
         return "${elapsedDays.toInt()} days, ${elapsedHours.toInt()} hours, ${elapsedMinutes.toInt()} minutes, ${elapsedSeconds.toInt()} seconds"
     }
+
+    fun toSafeFileName(filename: String): String {
+        // Normalize the filename to decompose accented characters
+        var normalizedFilename = Normalizer.normalize(filename, Normalizer.Form.NFD)
+
+        // Remove diacritical marks (accents)
+        normalizedFilename = normalizedFilename.replace("[\\p{InCombiningDiacriticalMarks}]".toRegex(), "")
+
+        // Replace unsafe characters with an underscore
+        val safeFilename = normalizedFilename.replace("[^a-zA-Z0-9._-]".toRegex(), "_")
+
+        // Return the safe filename
+        return safeFilename
+    }
 }
+
+fun String.capitalizeWords(): String = split(" ").map { subStr->
+    subStr.replaceFirstChar { char -> if (char.isLowerCase()) char.titlecase(Locale.getDefault()) else char.toString() }
+
+}.joinToString(" ")

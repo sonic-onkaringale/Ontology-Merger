@@ -2,6 +2,7 @@ package org.onkaringale.matching
 
 
 import Cache.ChatCache
+import LLMDetails
 import OntologyDetails
 import com.knuddels.jtokkit.Encodings
 import com.knuddels.jtokkit.api.*
@@ -11,6 +12,7 @@ import org.onkaringale.api.Apis
 import org.onkaringale.models.ChatCompletion.ChatCompletionRequest
 import org.onkaringale.models.ChatCompletion.Message
 import utils.Commons.getLabel
+import utils.OsUtil
 import utils.log
 
 
@@ -25,6 +27,8 @@ object SemanticSimilarity
     fun areSemanticallySimilar(
         class1: OntClass,
         class2: OntClass
+    ,api: Apis.LlmApi?=null
+    ,nodeId:Int?=null
     ): Boolean
     {
         var class1Label: String? = ""
@@ -37,6 +41,8 @@ object SemanticSimilarity
         if (class1Label == null || class2Label == null)
             return false
 
+        if (class1Label=="Thing"||class2Label=="Thing")
+            return false
 
         if (!class1.getComment(null).isNullOrBlank())
         {
@@ -47,20 +53,32 @@ object SemanticSimilarity
             class1Description = class2.getComment(null)
         }
 
-//        try
-//        {
-////            println(class1.listProperties().toList().toString())
-////            println(class1.listInstances().toList().toString())
-////            println(class1.listDeclaredProperties().toList().toString())
-//
-//
-//        }
-//        catch (_: Exception)
-//        {
-//
-//        }
 
-        val isSimilar = askApiOneToOne(class1Label, class1Description, class2Label, class2Description)
+        var nodeIdWithOs = nodeId.toString()
+        when (OsUtil.getOs())
+        {
+            OsUtil.OS.WINDOWS ->
+            {
+                nodeIdWithOs=""
+            }
+
+            OsUtil.OS.LINUX ->
+            {
+
+            }
+
+            OsUtil.OS.MAC ->
+            {
+
+            }
+
+            OsUtil.OS.SOLARIS ->
+            {
+
+            }
+        }
+
+        val isSimilar = askApiOneToOne(class1Label, class1Description, class2Label, class2Description,api,nodeIdWithOs.toString())
 //        println("$class1Label , $class2Label  isMatch : $isSimilar")
         return isSimilar
     }
@@ -195,6 +213,7 @@ object SemanticSimilarity
         class1Description: String,
         class2Label: String,
         class2Description: String
+        , api: Apis.LlmApi? = null, nodeId: String
     ): Boolean
     {
 
@@ -214,10 +233,10 @@ object SemanticSimilarity
             if (isSimilar!=null)
                 return isSimilar
         }
-        val llmApi = Apis.getLLMApi()
+        val llmApi = api ?: Apis.getLLMApi()
         val response = llmApi.chatCompletion(
             ChatCompletionRequest(
-                "lmstudio-community/Meta-Llama-3-8B-Instruct-GGUF",
+                "${LLMDetails.MODEL_NAME}$nodeId",
                 arrayListOf(
                     Message(
                         "system", "I will be providing two ontology classes class 1 and class 2.\n" +
@@ -245,11 +264,11 @@ object SemanticSimilarity
             }
             else
             {
-                if (responseString.trim()=="no")
+                if (responseString.contains("no"))
                 {
                     ChatCache.cache[toAsk]=false
                 }
-                if (responseString!="no")
+                else
                 {
                     log("Response wasn't expected : $responseString")
                 }
@@ -258,28 +277,7 @@ object SemanticSimilarity
 
         return false
 
-//        val client = OkHttpClient()
-//        val mediaType = "application/json".toMediaType()
-//        val jsonBody = JsonObject()
-//        jsonBody.apply {
-//            put("model","lmstudio-community/Meta-Llama-3-8B-Instruct-GGUF")
-//
-//
-//        }
-//
-//        val body =
-//            "{ \n    \"model\": \"lmstudio-community/Meta-Llama-3-8B-Instruct-GGUF\",\n    \"messages\": [ \n        { \"role\": \"user\", \"content\": \"My Name is Onkar\" },\n      { \"role\": \"user\", \"content\": \"What is my name\" }\n    ], \n    \"temperature\": 0.7, \n    \"max_tokens\": -1,\n    \"stream\": false\n}"
-//
-//        val request = Request.Builder()
-//            .url("http://localhost:1234/v1/chat/completions")
-//            .post(
-//                body.toRequestBody(
-//                    mediaType
-//                )
-//            )
-//            .addHeader("Content-Type", "application/json")
-//            .build()
-//        val response = client.newCall(request).execute()
+
 
     }
 

@@ -1,6 +1,7 @@
 plugins {
     kotlin("jvm") version "1.9.22"
     kotlin("plugin.serialization") version "2.0.0"
+    application
 }
 
 group = "org.onkaringale"
@@ -43,4 +44,32 @@ tasks.test {
 }
 kotlin {
     jvmToolchain(19)
+}
+
+application {
+    mainClass.set("org.onkaringale.MainKt") // Replace with your main class
+}
+
+tasks.jar {
+    manifest {
+        attributes["Main-Class"] = "org.onkaringale.MainKt"
+    }
+    // To include dependencies in the JAR, uncomment the following lines:
+    from(configurations.runtimeClasspath.get().map { if (it.isDirectory) it else zipTree(it) })
+    duplicatesStrategy = DuplicatesStrategy.EXCLUDE
+    from("src/main/resources") {
+        include("**/*")
+    }
+}
+
+tasks.withType<Jar> {
+    duplicatesStrategy = DuplicatesStrategy.EXCLUDE
+}
+
+tasks {
+    withType<org.jetbrains.kotlin.gradle.tasks.KotlinJvmCompile> {
+        compilerOptions {
+            jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_19) // Set the target JVM version
+        }
+    }
 }

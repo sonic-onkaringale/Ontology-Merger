@@ -17,3 +17,4 @@ fun OntModel.getName(): String
 {
     return Commons.getOntologyName(this)
 }
+
