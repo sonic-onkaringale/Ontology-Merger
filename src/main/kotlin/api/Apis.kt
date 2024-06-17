@@ -44,6 +44,9 @@ object Apis
         {
             multipleLLMApiInstance = listOf(
                 constructRetrofit("http://localhost:1234"),
+                constructRetrofit("http://localhost:1234"),
+                constructRetrofit("http://localhost:1234"),
+                constructRetrofit("http://localhost:1234"),
             )
         }
         return multipleLLMApiInstance!!

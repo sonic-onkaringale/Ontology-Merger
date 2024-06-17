@@ -1,14 +1,19 @@
 package natureInspired
 
-import kotlin.random.Random
-
-import kotlinx.coroutines.*
+import extensions.negate
+import kotlinx.coroutines.Deferred
+import kotlinx.coroutines.DelicateCoroutinesApi
+import kotlinx.coroutines.GlobalScope
+import kotlinx.coroutines.async
 import org.apache.jena.ontology.OntClass
 import org.onkaringale.api.Apis
 import org.onkaringale.matching.SemanticSimilarity
 import utils.log
-import utils.logSilent
 import utils.logerr
+import java.time.Instant
+import java.util.*
+import kotlin.collections.HashMap
+import kotlin.random.Random
 
 
 object LoadBalancing
@@ -17,6 +22,10 @@ object LoadBalancing
     data class Node(val id: Int, val llmApi: Apis.LlmApi, var load: Int = 0)
     data class Task(val id: Int, val class1: OntClass, val class2: OntClass)
 
+    val multipleApis = Apis.getMultipleLLMApis()
+    val timeTookArray = MutableList(multipleApis.size) { 0L }
+    val pheromones = Array(multipleApis.size) { 1.0 }
+
     class AntColonyOptimization(
         val nodes: List<Node>,
         val tasks: List<Task>,
@@ -24,69 +33,85 @@ object LoadBalancing
         val pheromoneIncrease: Double
     )
     {
-        private val pheromones: Array<DoubleArray> = Array(tasks.size) { DoubleArray(nodes.size) { 1.0 } }
+        val pheromoneDecreaseFactor: Double = 0.1
         private val unassignedTasks = tasks.toMutableList()
 
+
+        @OptIn(DelicateCoroutinesApi::class)
         suspend fun runOptimization(): List<Boolean>
         {
-            val assignments = assignTasks()
-            updatePheromones(assignments)
-            evaporatePheromones()
-            return executeTasks(assignments)
-        }
+            val results = MutableList<Boolean>(unassignedTasks.size) { false }
+            val allDeferredResults = HashMap<Pair<Task, Node>, Deferred<Pair<Boolean?, Long>>>()
 
-        private fun assignTasks(): List<Pair<Task, Node>>
-        {
-            val assignments = mutableListOf<Pair<Task, Node>>()
             for (task in unassignedTasks)
             {
-                val probabilities = calculateProbabilities(task.id)
-                val selectedNode = selectNode(probabilities)
-                nodes[selectedNode].load += 1
-//                logSilent("Assigned Task ${task.id} to Node ${nodes[selectedNode].id}")
-                assignments.add(task to nodes[selectedNode])
-            }
-            unassignedTasks.clear()
-            return assignments
-        }
-
-        private fun calculateProbabilities(taskId: Int): List<Double>
-        {
-            val pheromoneLevels = pheromones[taskId]
-            val maxLoad = nodes.maxOf { it.load }.toDouble()
-            val loadFactor = nodes.map { 1 - (it.load / (maxLoad + 1)) } // +1 to avoid division by zero
-            val combined = pheromoneLevels.zip(loadFactor) { pheromone, loadFactor ->
-                pheromone * loadFactor
-            }
-            val sumCombined = combined.sum()
-            return combined.map { it / sumCombined }
-        }
-
-        private suspend fun executeTasks(assignments: List<Pair<Task, Node>>): List<Boolean> = coroutineScope {
-//            Hashmap of index and result
-            val allDeferredResults = HashMap<Int, Deferred<Boolean>>()
-            assignments.forEach { (task, node) ->
-                val result = async {
-                    return@async makeHttpCall(node, task)
+                val assignment = assignTask(task)
+                val resultDeferred = GlobalScope.async {
+                    val (result, timeTook) = executeTask(assignment)
+                    results[assignment.first.id] = result ?: false
+                    Pair(result, timeTook)
                 }
-                allDeferredResults[task.id] = result
+                allDeferredResults[assignment] = resultDeferred
             }
-            for ((key, value) in allDeferredResults)
+            for ((key, value) in allDeferredResults.toSortedMap { o1, o2 ->
+                if (o1.first.id > o2.first.id)
+                    o1.first.id
+                else
+                    o2.first.id
+            })
             {
                 value.await()
-            }
-            return@coroutineScope List<Boolean>(allDeferredResults.size) { index: Int ->
-                allDeferredResults[index]?.await() ?: throw RuntimeException("Indexing in Load Balancing is messed up")
+                updatePheromones(key, value.await().first, value.await().second)
+                evaporatePheromones()
             }
 
+            return results
+        }
 
+        private fun assignTask(task: Task): Pair<Task, Node>
+        {
+            val probabilities = calculateProbabilities()
+            val selectedNode = selectNode(probabilities)
+            nodes[selectedNode].load += 1
+            return task to nodes[selectedNode]
+        }
+
+        private fun calculateProbabilities(): List<Double>
+        {
+            val maxLoad = nodes.maxOf { it.load }.toDouble()
+            val loadFactor = nodes.map { 1 - (it.load / (maxLoad + 1)) } // +1 to avoid division by zero
+            val combined = pheromones.zip(loadFactor) { pheromone, ldFactor ->
+                pheromone * ldFactor
+            }
+            val sumCombined = combined.sum()
+            return if (sumCombined == 0.0)
+            {
+                List(combined.size) { 1.0 / combined.size }
+            }
+            else
+            {
+//                combined.map { it / sumCombined }
+                combined.map { it }
+            }
+        }
+
+
+        private suspend fun executeTask(assignment: Pair<Task, Node>): Pair<Boolean?, Long>
+        {
+            val (task, node) = assignment
+            val startTime = Instant.now().toEpochMilli()
+            val result = makeHttpCall(node, task)
+            val endTime = Instant.now().toEpochMilli()
+            val timeTook = endTime - startTime
+            timeTookArray[node.id] += timeTook
+            return Pair(result, timeTook)
         }
 
         private suspend fun makeHttpCall(node: Node, task: Task): Boolean
         {
             try
             {
-                return SemanticSimilarity.areSemanticallySimilar(task.class1, task.class2, node.llmApi,node.id+1)
+                return SemanticSimilarity.areSemanticallySimilar(task.class1, task.class2, node.llmApi, node.id + 1)
             }
             catch (e: Exception)
             {
@@ -95,37 +120,80 @@ object LoadBalancing
             return false
         }
 
-        private fun updatePheromones(assignments: List<Pair<Task, Node>>)
+
+        private fun updatePheromones(assignment: Pair<Task, Node>, success: Boolean?, timeTook: Long)
         {
-            assignments.forEach { (task, node) ->
-                pheromones[task.id][node.id] += pheromoneIncrease
+            val (task, node) = assignment
+            if (success != null)
+            {
+
+                pheromones[node.id] = (pheromones[node.id] + pheromoneIncrease) + timeValueFunction(timeTook)
             }
+            else
+            {
+                pheromones[node.id] =
+                    negate((pheromones[node.id] * pheromoneDecreaseFactor) + timeValueFunction(timeTook))
+                if (!compromisedNodes.containsKey(node.id))
+                {
+                    compromisedNodes[node.id]=true
+                    stackSize--
+                }
+
+            }
+        }
+
+
+        fun timeValueFunction(value: Long): Double
+        {
+            return (1.0 / (value + 1)) * 100
         }
 
         private fun evaporatePheromones()
         {
             for (i in pheromones.indices)
             {
-                for (j in pheromones[i].indices)
-                {
-                    pheromones[i][j] *= (1 - evaporationRate)
-                }
+
+
+                pheromones[i] *= (1 - evaporationRate)
+//                pheromones[i] = maxOf(pheromones[i], minPheromoneLevel)
             }
         }
 
+        var lastSelectedIndexes = Stack<Int>()
+        var stackSize = nodes.size
+        var compromisedNodes =HashMap<Int,Boolean>()
+
         private fun selectNode(probabilities: List<Double>): Int
         {
-            val randomValue = Random.nextDouble()
+            val totalProbability = probabilities.max()
+            val randomValue = Random.nextDouble(totalProbability)
             var cumulativeProbability = 0.0
+//            Index and Probability
+            var mapProbability = HashMap<Int, Double>()
+
             for ((index, probability) in probabilities.withIndex())
             {
+                mapProbability[index] = probability
+            }
+            val sortedMapProbability = mapProbability.entries.sortedByDescending {
+                it.value
+            }
+
+            for ((index, probability) in sortedMapProbability)
+            {
+
                 cumulativeProbability += probability
-                if (randomValue <= cumulativeProbability)
+                if (lastSelectedIndexes.size == stackSize)
+                    lastSelectedIndexes.clear()
+
+                if (randomValue <= cumulativeProbability && !lastSelectedIndexes.contains(index))
                 {
+                    lastSelectedIndexes.add(index)
                     return index
                 }
             }
-            return probabilities.size - 1
+            return probabilities.indices.random()
+
         }
     }
 
@@ -134,7 +202,6 @@ object LoadBalancing
     {
 
         val allLLmApiNodes = ArrayList<Node>()
-        val multipleApis = Apis.getMultipleLLMApis()
         for (i in multipleApis.indices)
         {
             allLLmApiNodes.add(Node(i, multipleApis[i]))
@@ -145,7 +212,7 @@ object LoadBalancing
             tasks.add(Task(i, classes1[i], class2))
         }
 
-        val aco = AntColonyOptimization(allLLmApiNodes, tasks, evaporationRate = 0.1, pheromoneIncrease = 1.0)
+        val aco = AntColonyOptimization(allLLmApiNodes, tasks, evaporationRate = 0.1, pheromoneIncrease = 0.4)
         val results = aco.runOptimization()
         allLLmApiNodes.forEach { log("Node ${it.id} had load ${it.load}") }
         return results

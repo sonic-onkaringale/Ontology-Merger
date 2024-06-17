@@ -5,8 +5,6 @@ import OntologyDetails
 import graphs.OntGraphUtils.graphReports
 import kotlinx.coroutines.*
 import merge.MergeOntologiesBestEntry
-import natureInspired.LoadBalanceTest
-import natureInspired.LoadBalancing
 import utils.*
 import java.io.File
 import java.time.Instant
@@ -17,39 +15,39 @@ import kotlin.system.exitProcess
 @OptIn(DelicateCoroutinesApi::class)
 fun main()
 {
-    /* println()
-     logNoTime("Welcome to Ontology Merger")
-     println()
+    println()
+    logNoTime("Welcome to Ontology Merger")
+    println()
 
 
-     OntologyDetails.init()
-     askToChooseOwlFiles()
-     askApproach()
-     val startTime = Date(Instant.now().toEpochMilli())
+    OntologyDetails.init()
+    askToChooseOwlFiles()
+    askApproach()
+    val startTime = Date(Instant.now().toEpochMilli())
 
-     val mergeOntologiesInstance = MergeOntologiesBestEntry(OntologyDetails.modelPath1,OntologyDetails.modelPath2)
-     OntologyDetails.setModels(mergeOntologiesInstance.getModel1(),mergeOntologiesInstance.getModel2())
-     logNoTime("Model 1 : ${OntologyDetails.ontology1}")
-     logNoTime("Model 2 : ${OntologyDetails.ontology2}")
-     ChatCache.init()
-     graphReports(
-         mergeOntologiesInstance.getModel1(), mergeOntologiesInstance.getModel2(),
-         mergeOntologiesInstance.getModel1Graph(), mergeOntologiesInstance.getModel2Graph()
-     )
+    val mergeOntologiesInstance = MergeOntologiesBestEntry(OntologyDetails.modelPath1, OntologyDetails.modelPath2)
+    OntologyDetails.setModels(mergeOntologiesInstance.getModel1(), mergeOntologiesInstance.getModel2())
+    logNoTime("Model 1 : ${OntologyDetails.ontology1}")
+    logNoTime("Model 2 : ${OntologyDetails.ontology2}")
+    ChatCache.init()
+    graphReports(
+        mergeOntologiesInstance.getModel1(), mergeOntologiesInstance.getModel2(),
+        mergeOntologiesInstance.getModel1Graph(), mergeOntologiesInstance.getModel2Graph()
+    )
 
-     log("Started merging.")
-     mergeOntologiesInstance.mergeOntologies()
-     log("Merging Complete.")
+    log("Started merging.")
+    mergeOntologiesInstance.mergeOntologies()
+    log("Merging Complete.")
 
 
-     ChatCache.saveCache()
-     val endTime = Date(Instant.now().toEpochMilli())
-     log("Total Compute Time :  " + Commons.getDateTimeDifference(startTime, endTime))
-     Log.save(mergeOntologiesInstance.getModel1(), mergeOntologiesInstance.getModel2())
-     println()
-     println()*/
+    ChatCache.saveCache()
+    val endTime = Date(Instant.now().toEpochMilli())
+    log("Total Compute Time :  " + Commons.getDateTimeDifference(startTime, endTime))
+    Log.save(mergeOntologiesInstance.getModel1(), mergeOntologiesInstance.getModel2())
+    println()
+    println()
 
-    LoadBalanceTest.simulate()
+
 }
 
 fun askToChooseOwlFiles()
