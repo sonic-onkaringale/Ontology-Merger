@@ -5,6 +5,8 @@ import OntologyDetails
 import graphs.OntGraphUtils.graphReports
 import kotlinx.coroutines.*
 import merge.MergeOntologiesBestEntry
+import natureInspired.LoadBalanceTest
+import natureInspired.LoadBalancing
 import utils.*
 import java.io.File
 import java.time.Instant
@@ -15,38 +17,39 @@ import kotlin.system.exitProcess
 @OptIn(DelicateCoroutinesApi::class)
 fun main()
 {
-    println()
-    logNoTime("Welcome to Ontology Merger")
-    println()
+    /* println()
+     logNoTime("Welcome to Ontology Merger")
+     println()
 
 
-    OntologyDetails.init()
-    askToChooseOwlFiles()
-    askApproach()
-    val startTime = Date(Instant.now().toEpochMilli())
+     OntologyDetails.init()
+     askToChooseOwlFiles()
+     askApproach()
+     val startTime = Date(Instant.now().toEpochMilli())
+
+     val mergeOntologiesInstance = MergeOntologiesBestEntry(OntologyDetails.modelPath1,OntologyDetails.modelPath2)
+     OntologyDetails.setModels(mergeOntologiesInstance.getModel1(),mergeOntologiesInstance.getModel2())
+     logNoTime("Model 1 : ${OntologyDetails.ontology1}")
+     logNoTime("Model 2 : ${OntologyDetails.ontology2}")
+     ChatCache.init()
+     graphReports(
+         mergeOntologiesInstance.getModel1(), mergeOntologiesInstance.getModel2(),
+         mergeOntologiesInstance.getModel1Graph(), mergeOntologiesInstance.getModel2Graph()
+     )
+
+     log("Started merging.")
+     mergeOntologiesInstance.mergeOntologies()
+     log("Merging Complete.")
 
 
-    val mergeOntologiesInstance = MergeOntologiesBestEntry(OntologyDetails.modelPath1,OntologyDetails.modelPath2)
-    OntologyDetails.setModels(mergeOntologiesInstance.getModel1(),mergeOntologiesInstance.getModel2())
-    logNoTime("Model 1 : ${OntologyDetails.ontology1}")
-    logNoTime("Model 2 : ${OntologyDetails.ontology2}")
-    ChatCache.init()
-    graphReports(
-        mergeOntologiesInstance.getModel1(), mergeOntologiesInstance.getModel2(),
-        mergeOntologiesInstance.getModel1Graph(), mergeOntologiesInstance.getModel2Graph()
-    )
+     ChatCache.saveCache()
+     val endTime = Date(Instant.now().toEpochMilli())
+     log("Total Compute Time :  " + Commons.getDateTimeDifference(startTime, endTime))
+     Log.save(mergeOntologiesInstance.getModel1(), mergeOntologiesInstance.getModel2())
+     println()
+     println()*/
 
-    log("Started merging.")
-    mergeOntologiesInstance.mergeOntologies()
-    log("Merging Complete.")
-
-
-    ChatCache.saveCache()
-    val endTime = Date(Instant.now().toEpochMilli())
-    log("Total Compute Time :  " + Commons.getDateTimeDifference(startTime, endTime))
-    Log.save(mergeOntologiesInstance.getModel1(), mergeOntologiesInstance.getModel2())
-    println()
-    println()
+    LoadBalanceTest.simulate()
 }
 
 fun askToChooseOwlFiles()
@@ -79,14 +82,16 @@ fun askApproach()
     val scanner = Scanner(System.`in`)
     logNoTime("Enter the number of the Approach you want to choose: ")
     val chosenIndex = scanner.nextInt()
-    if (chosenIndex==1)
+    if (chosenIndex == 1)
     {
-        OntologyDetails.mergingApproach =OntologyDetails.MergingApproach.TOP_BOTTOM
-    } else if (chosenIndex==2)
-    {
-        OntologyDetails.mergingApproach =OntologyDetails.MergingApproach.BOTTOM_UP
+        OntologyDetails.mergingApproach = OntologyDetails.MergingApproach.TOP_BOTTOM
     }
-    else{
+    else if (chosenIndex == 2)
+    {
+        OntologyDetails.mergingApproach = OntologyDetails.MergingApproach.BOTTOM_UP
+    }
+    else
+    {
         logerr("Exiting program due to selection of invalid merging approach")
         exitProcess(-1)
     }
