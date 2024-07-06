@@ -26,6 +26,9 @@ object LoadBalancing
     val timeTookArray = MutableList(multipleApis.size) { 0L }
     val pheromones = Array(multipleApis.size) { 1.0 }
 
+    var stackSize = multipleApis.size
+    var compromisedNodes =HashMap<Int,Boolean>()
+
     class AntColonyOptimization(
         val nodes: List<Node>,
         val tasks: List<Task>,
@@ -160,8 +163,7 @@ object LoadBalancing
         }
 
         var lastSelectedIndexes = Stack<Int>()
-        var stackSize = nodes.size
-        var compromisedNodes =HashMap<Int,Boolean>()
+
 
         private fun selectNode(probabilities: List<Double>): Int
         {
